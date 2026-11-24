@@ -1,6 +1,10 @@
 package tests;
 
 import core.TestBase;
+import io.qameta.allure.Feature;
+import io.qameta.allure.Severity;
+import io.qameta.allure.SeverityLevel;
+import io.qameta.allure.Story;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -14,6 +18,7 @@ import static com.codeborne.selenide.Condition.text;
 import static com.codeborne.selenide.Condition.visible;
 import static com.codeborne.selenide.Selenide.open;
 
+@Feature("Поиск на GitHub")
 public class SearchTests extends TestBase {
     private static final String EXISTING_QUERY = "qa.guru";
     private static final String EXISTING_REPOSITORY = "qa-guru/niffler";
@@ -24,6 +29,8 @@ public class SearchTests extends TestBase {
     }
 
     @Test
+    @Story("Поиск существующего репозитория")
+    @Severity(SeverityLevel.CRITICAL)
     @DisplayName("Поиск существующего запроса возвращает релевантный репозиторий")
     void successfulSearchTest() {
         openSearch()
@@ -33,6 +40,8 @@ public class SearchTests extends TestBase {
     }
 
     @Test
+    @Story("Поиск без результатов")
+    @Severity(SeverityLevel.MINOR)
     @DisplayName("Поиск несуществующего запроса не возвращает репозиториев")
     void searchWithoutMatchesTest() {
         SearchResultsPage results = openSearch().search(MISSING_QUERY);
@@ -46,6 +55,8 @@ public class SearchTests extends TestBase {
             "selenide, selenide/selenide, selenide",
             "qa.guru, qa-guru/niffler, niffler"
     })
+    @Story("Переход в найденный репозиторий")
+    @Severity(SeverityLevel.NORMAL)
     @DisplayName("Из результатов поиска открывается найденный репозиторий")
     void openRepositoryFromSearchResultsTest(String query, String fullName, String shortName) {
         RepositoryPage repository = openSearch()

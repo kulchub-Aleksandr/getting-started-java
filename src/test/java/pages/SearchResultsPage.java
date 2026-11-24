@@ -1,6 +1,7 @@
 package pages;
 
 import com.codeborne.selenide.SelenideElement;
+import io.qameta.allure.Step;
 
 import static com.codeborne.selenide.Condition.text;
 import static com.codeborne.selenide.Selenide.$;
@@ -22,6 +23,7 @@ public class SearchResultsPage {
         return $$(RESULTS_LIST + " h3 a").findBy(text(fullName));
     }
 
+    @Step("Открыть репозиторий из результатов поиска")
     public RepositoryPage openRepository(String fullName) {
         repositoryLink(fullName).click();
         return new RepositoryPage();

@@ -31,7 +31,8 @@
 | Selenide | 7.18.2 (Selenium 4.49.0) | `build.gradle`; [release notes](https://github.com/selenide/selenide/releases/tag/v7.18.2) | 0 |
 | JUnit Jupiter | 6.1.3 | `build.gradle`; [Maven Central](https://repo1.maven.org/maven2/org/junit/jupiter/junit-jupiter/6.1.3/) | 0 |
 | Allure Java | `allure-bom` + `allure-jupiter` + `allure-selenide` **3.1.1** | [Maven Central](https://repo1.maven.org/maven2/io/qameta/allure/allure-jupiter/maven-metadata.xml); Java 17+; JUnit 6 / Selenide 7.x | 3 |
-| Allure CLI | npm `allure` **3.33.0** (`npx allure`) | [registry.npmjs.org/allure](https://registry.npmjs.org/allure/latest); зафиксировать в CI | 3 |
+| Allure CLI | npm `allure` **3.33.0** (`npx allure@3.33.0`), Node.js **≥ 22.18.0** (локально 24.15.0) | [registry.npmjs.org/allure](https://registry.npmjs.org/allure/latest), [Allure 3 README](https://github.com/allure-framework/allure3/blob/main/README.md); `engines.node` в npm-манифесте; проверено `npx allure@3.33.0 --version` → `3.33.0` | 3 |
+| AspectJ Weaver | **1.9.27** (только test runtime, `-javaagent`) | [Maven Central](https://repo1.maven.org/maven2/org/aspectj/aspectjweaver/maven-metadata.xml); требуется для `@Step`/`@Attachment` | 3 |
 | GitHub Actions | `ubuntu-latest` + `actions/setup-java` (Temurin 25) | Chrome/ChromeDriver предустановлены; мажор `setup-java` требует проверки | 4 |
 | Jenkins | `allure-jenkins-plugin` **3.0.0** (требует Jenkins ≥ 2.541.3) | [plugins.jenkins.io](https://plugins.jenkins.io/allure-jenkins-plugin/) | 6 |
 
@@ -39,10 +40,13 @@
 
 | Вопрос | Вердикт | Источник | Влияние на план |
 |---|---|---|---|
-| `allure-junit5` × JUnit 6.1.3 | **Да, но артефакт заменён**: `allure-junit5` в 3.x не публикуется, использовать `allure-jupiter` 3.1.1 (валидирован против JUnit 6.1.0 platform API) | [allure-jupiter README](https://github.com/allure-framework/allure-java/blob/main/allure-jupiter/README.md) | Фаза 3: подключать `allure-jupiter`, не `allure-junit5`; точную 6.1.3 проверить прогоном |
-| `allure-selenide` × Allure 3 | **Да**: `allure-selenide` 3.1.1, targets Selenide 7.x (сборка валидирована на 7.17.0; у нас 7.18.2) | [allure-selenide README](https://github.com/allure-framework/allure-java/blob/main/allure-selenide/README.md) | Фаза 3: регистрировать `AllureSelenide` через `SelenideLogger` в `TestBase` |
-| Allure Report 3: установка CLI | **Да**: npm-пакет `allure` 3.33.0, `npm i -g allure` или `npx allure`; результаты — каталог с именем `allure-results` | [Allure 3 README](https://github.com/allure-framework/allure3/blob/main/README.md), [npm](https://www.npmjs.com/package/allure) | Фаза 3: `npx allure generate <resultsDir>` / `npx allure open <reportDir>`; output задаётся в `allurerc.*` |
-| Allure 3 `generate`: флаг `-o/--output` | **Требует проверки**: документирован вывод через `allurerc.*`; наличие `-o` у `generate` не подтверждено | [Allure 3 README](https://github.com/allure-framework/allure3/blob/main/README.md) | Фаза 3: дешёво проверить `npx allure generate --help`; при отсутствии — конфиг `allurerc.mjs` |
+| `allure-junit5` × JUnit 6.1.3 | **Да, но артефакт заменён**: `allure-junit5` в 3.x не публикуется, использовать `allure-jupiter` 3.1.1 (валидирован против JUnit 6.1.0 platform API); **прогон на JUnit 6.1.3 зелёный** (4/4, 2026-11-24) | [allure-jupiter README](https://github.com/allure-framework/allure-java/blob/main/allure-jupiter/README.md), `build/test-results/test/TEST-tests.SearchTests.xml` | Фаза 3: подключать `allure-jupiter`, не `allure-junit5`; результаты пишутся, тесты видны |
+| `allure-selenide` × Allure 3 | **Да**: `allure-selenide` 3.1.1, targets Selenide 7.x (сборка валидирована на 7.17.0; у нас 7.18.2 — прогон зелёный) | [allure-selenide README](https://github.com/allure-framework/allure-java/blob/main/allure-selenide/README.md) | Фаза 3: `AllureSelenide` через `SelenideLogger` в `TestBase`; вложения только на `FAIL` |
+| Allure Report 3: установка CLI | **Да**: npm-пакет `allure` 3.33.0, `npm i -g allure` или `npx allure@3.33.0`; результаты — каталог с именем `allure-results` на любом уровне вложенности | [Allure 3 README](https://github.com/allure-framework/allure3/blob/main/README.md), [npm](https://www.npmjs.com/package/allure) | Фаза 3: `npx allure@3.33.0 generate build/allure-results`; `npx allure@3.33.0 open build/allure-report` |
+| Allure 3 `generate`: флаг `-o/--output` | **Да (проверено запуском)**: `--output,-o` присутствует; default `allure-report`; также `--clean`, `--open`, `--port`, `--host` | `npx allure@3.33.0 generate --help` (2026-11-24) | Фаза 3: используем `allurerc.mjs` с `output: build/allure-report` + `--clean` |
+| Allure 3 `generate`: default report | **Awesome**, `index.html` кладётся в корень output-каталога (не в `awesome/`, несмотря на `href` в `summary.json`) | фактический прогон: `build/allure-report/index.html`; `summary.json` → `"plugin":"Awesome"` | Фаза 3: открывать `build/allure-report`, не вложенный `awesome/` |
+| `@Step` × Allure Java 3.1.1 | **Требует AspectJ weaver**: аннотации `@Step`/`@Attachment` не работают без `-javaagent`; с `aspectjweaver` 1.9.27 шаги появились в result JSON | [allure-java-commons README](https://github.com/allure-framework/allure-java/blob/main/allure-java-commons/README.md), [Maven Central](https://repo1.maven.org/maven2/org/aspectj/aspectjweaver/maven-metadata.xml) | Фаза 3: `testRuntimeOnly` + конфигурация `aspectj` + `-javaagent` в `tasks.withType(Test)` |
+| Каталог результатов Allure Java | **По умолчанию `allure-results` в рабочем каталоге**, не `build/allure-results` (последнее — дефолт Gradle-плагина Allure, который мы не применяем) | прогон без явной настройки + README `allure-jupiter` («usually `build/allure-results` for Gradle» относится к плагину) | Фаза 3: явно `systemProperty 'allure.results.directory'` → `build/allure-results` |
 | Selenide 7.18.2 × Java 25 | **Да (эмпирически)**: baseline-прогон зелёный на Java 25.0.5; официального заявления про Java 25 нет | `build/test-results/test/TEST-SearchTests.xml`; [Selenide 7.18.2](https://github.com/selenide/selenide/releases/tag/v7.18.2) | Ограничений не вносим; при проблемах в CI — отдельное решение |
 | Jenkins Allure plugin × Allure 3 | **Да**: plugin 3.0.0, «Recommended Allure 3» по умолчанию, встроенный Node.js | [plugins.jenkins.io/allure-jenkins-plugin](https://plugins.jenkins.io/allure-jenkins-plugin/) | Фаза 6: использовать plugin 3.0.0; fallback CLI + `publishHTML` не обязателен |
 | GHA: Chrome/драйвер на `ubuntu-latest` | **Да, ставить не нужно**: образ (24.04/26.04) содержит Google Chrome 157 + ChromeDriver 157 + Selenium server 4.52 | [Ubuntu 26.04](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2604-Readme.md), [Ubuntu 24.04](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md) | Фаза 4: без шага установки браузера; `browser-actions/setup-chrome@v2` — только для пина версии |
@@ -116,13 +120,40 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 
 `@Step` и Allure-аннотации (`@Feature`, `@Story`, `@Severity`) добавляются в фазе 3 вместе с зависимостью Allure.
 
+### 3.3 Allure 3 (фаза 3)
+
+**Зависимости** (`build.gradle`): `platform("io.qameta.allure:allure-bom:3.1.1")`, `io.qameta.allure:allure-java-commons` (аннотации `@Feature`/`@Story`/`@Severity`/`@Step`), `io.qameta.allure:allure-jupiter`, `io.qameta.allure:allure-selenide`; `org.aspectj:aspectjweaver:1.9.27` (+ отдельная конфигурация `aspectj` для `-javaagent`). Последний нужен только для `@Step`; без него шаги Selenide пишутся, а `@Step` игнорируется (проверено).
+
+**IDE**: если `@Feature`/`@Story`/`@Severity`/`@Step` подсвечены красным, а `./gradlew test` зелёный — это устаревшая Gradle-модель IDE, а не classpath. Лечится переимпортом Gradle-проекта (IDEA: «Reload Gradle Project», VS Code: «Java: Reload Projects»), не правкой импортов. `allure-java-commons` объявлен явно, чтобы аннотации были прямой зависимостью.
+
+**Результаты**: `allure.results.directory` = `build/allure-results` (system property в `tasks.withType(Test)`). Это не дефолт библиотеки: без настройки Allure Java пишет в `./allure-results` (`AllureLifecycle#getDefaultWriter`, default `"allure-results"`). Каталог `build/` уже в `.gitignore`.
+
+**Отчёт**: конфиг `allurerc.mjs` → `name: "getting-started-java"`, `output: "build/allure-report"`. Allure 3.33.0 генерирует Awesome-отчёт, `index.html` лежит в корне `build/allure-report`; каталог тоже под `build/`.
+
+| Действие | Команда | Проверено |
+|---|---|---|
+| Прогон | `./gradlew clean test -Dselenide.headless=true` (PowerShell: `.\gradlew.bat clean test "-Dselenide.headless=true"`) | да, 4/4 passed |
+| Генерация | `npx allure@3.33.0 generate build/allure-results --clean` | да, `summary.json`: total 4, passed 4 |
+| Просмотр | `npx allure@3.33.0 open build/allure-report` | да, HTTP 200, `<title>getting-started-java</title>` |
+| Альтернатива | `npx allure@3.33.0 generate ... --open` (флаг есть в `--help`) | флаг подтверждён, в паре не использовался |
+
+`npx allure@3.33.0` скачивает CLI при первом запуске (нужен Node.js ≥ 22.18.0); версия пинуется, глобальная установка не требуется.
+
+**Selenide → Allure**: `AllureSelenide` регистрируется в `TestBase@BeforeAll` (перед действиями) и снимается в `@AfterAll` после `closeWebDriver()`. `screenshots(true)`, `savePageSource(true)`; вложения пишутся только при `EventStatus.FAIL` (код `AllureSelenide#afterEvent`), не на каждый шаг. Дублирования нет: логгер один, имя `allure`, перед добавлением снимается старый.
+
+**S5 `@Step`**: добавлены `SearchPage#search` и `SearchResultsPage#openRepository` (без placeholders — не требуется `-parameters`). В result JSON шаги видны: `$("open") ...` → `Выполнить поиск` → `Открыть репозиторий из результатов поиска` → Selenide-ассерты.
+
+**S10**: добавлены `@Feature("Поиск на GitHub")` на класс, `@Story` + `@Severity` на каждый тест (CRITICAL / MINOR / NORMAL). `@Epic`/`@Owner` не добавлены: S10 требует минимум `@Feature`/`@Story`/`@Severity`, а без реального значения эти метки были бы ритуалом.
+
+**Контролируемая поломка** (2026-11-24): `EXISTING_REPOSITORY` временно заменён на `qa-guru/nonexistent-987654321` → `successfulSearchTest` failed; в отчёте у упавшего шага `Screenshot` (`image/png`, 150 462 B) и `Page source` (`text/html`, 205 109 B); `summary.json` → `total 4, passed 3, failed 1`, `status: failed`. После отката: 4/4 passed, `status: passed`, вложений нет.
+
 ## 4. Риски
 
 **Baseline (2026-11-24):** `.\gradlew.bat test` (headed, локальный Chrome) — **зелёный**: `SearchTests.successfulSearchTest` 1/1, 8.9 с. В stderr: SLF4J NOP и `WARNING: Unable to find CDP implementation matching 158` (несовпадение CDP Selenium 4.49 и Chrome 158, не фатально).
 
 | Риск | Вероятность | Влияние | Мера | Статус |
 |---|---|---|---|---|
-| `allure-junit5` несовместим с JUnit 6.1.x | низкая | высокое | использовать `allure-jupiter` 3.1.1 (валидирован JUnit 6.1.0); проверить на 6.1.3 прогоном | решён (осталась проверка прогоном) |
+| `allure-junit5` несовместим с JUnit 6.1.x | низкая | высокое | использовать `allure-jupiter` 3.1.1 (валидирован JUnit 6.1.0); проверить на 6.1.3 прогоном | **закрыт**: 4/4 passed на JUnit 6.1.3 |
 | Jenkins Allure plugin не поддерживает Allure 3 | низкая | среднее | plugin 3.0.0 поддерживает Allure 3; fallback — CLI + `publishHTML`/archive | решён |
 | `github.com/search` отдаёт captcha/rate-limit в CI | **высокая** | высокое | headless, переопределяемый `baseUrl`, smoke-тег, минимум запросов; при блокировке — другой target | открыт |
 | 4 поисковых запроса на прогон (2 теста + 2 параметра навигации) | средняя | высокое | не более одного поиска на тест; два прогона подряд зелёные (2026-11-24); при captcha — сократить параметризацию навигации до одного кейса | принят |
@@ -131,8 +162,12 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 | Поиск в headless может отдать иную сортировку/состав топ-результатов | средняя | среднее | проверяется наличие конкретной ссылки в выдаче, а не позиция элемента | принят |
 | Gradle не пробрасывает `-D` в test JVM | высокая | среднее | в фазе 1 явно `test { systemProperty ... }` или `systemProperties System.getProperties()`; проверить `-Dselenide.headless=true` | **решён (фаза 1)**: явный список ключей в `tasks.withType(Test)`; headed/headless/`-DbaseUrl` проверены |
 | Chrome 158 vs CDP Selenium 4.49 (warning в baseline) | средняя | низкое | warning не ломает тест; не включать CDP-фичи; при падении — обновление Selenide отдельным решением | принят |
-| Allure results пишутся не туда (`allure-results` vs `build/allure-results`) | средняя | среднее | явно задать `allure.results.directory` в `build.gradle`/`TestBase`, проверить генерацию | открыт |
-| Allure 3 `generate` без `-o` | средняя | низкое | проверить `npx allure generate --help`; иначе `allurerc.mjs` с `output` | открыт |
+| Allure results пишутся не туда (`allure-results` vs `build/allure-results`) | средняя | среднее | явно задать `allure.results.directory` в `build.gradle`/`TestBase`, проверить генерацию | **решён**: `build/allure-results`, 4 result JSON |
+| Allure 3 `generate` без `-o` | средняя | низкое | проверить `npx allure generate --help`; иначе `allurerc.mjs` с `output` | **решён**: `-o/--output` есть, default `allure-report`; используем `allurerc.mjs` |
+| `@Step` не попадает в отчёт без AspectJ weaver | высокая | низкое | `aspectjweaver` 1.9.27 + `-javaagent`; проверить result JSON | **решён**: шаги `Выполнить поиск` / `Открыть репозиторий...` в отчёте |
+| `npx` тянет CLI из сети при каждом прогоне / Node < 22.18 | средняя | низкое | пин `allure@3.33.0`; в CI кэш npm или локальная установка; Node ≥ 22.18 | принят |
+| Awesome-отчёт: `index.html` в корне output, а не в `awesome/` | низкая | низкое | открывать `build/allure-report`; не хардкодить `awesome/` в Jenkins/GHA | принят |
+| Вложения раздувают отчёт (page source ~200 КБ на падение) | низкая | низкое | вложения только на `FAIL`; без скриншотов на каждый шаг | принят |
 | `setup-java` мажор устарел (v4 → v5) | средняя | низкое | сверить на фазе 4 с Marketplace; записать версию | открыт |
 | Секреты Telegram попадают в лог | низкая | высокое | secrets + маскирование + отсутствие echo | открыт |
 
@@ -147,8 +182,8 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 
 | Артефакт | Где | Ссылка | Фаза |
 |---|---|---|---|
-| `allure-results` | artifact GHA / Jenkins | | 4, 6 |
-| HTML-отчёт | gh-pages / Jenkins | | 4, 6 |
+| `build/allure-results` | artifact GHA / Jenkins | локально наполняется при `test` | 3–6 |
+| HTML-отчёт `build/allure-report` | gh-pages / Jenkins | локально `npx allure@3.33.0 generate` | 3–6 |
 | Workflow | `.github/workflows/` | | 4 |
 | `Jenkinsfile` | корень | | 6 |
 
@@ -159,8 +194,28 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 | 0. Аудит | **закрыт** | 2026-11-24 | Baseline зелёный; совместимость проверена; S1–S12 подтверждены |
 | 1. TestBase | **закрыт** | 2026-11-24 | `TestConfig` + `TestBase`; `SearchTests` в пакете `tests`; headed/headless/`-DbaseUrl`/env/сброс к дефолту проверены |
 | 2. Тесты + PageObject | **закрыт** | 2026-11-24 | 3 page-класса (композиция `$`/`$$`), 3 метода тестов / 4 выполнения; headless дважды зелёный (8.6 с и ~8 с); локаторов и `sleep` в `tests/` нет; TestBase/конфиг/build.gradle не менялись |
-| 3. Allure 3 | открыт | | |
+| 3. Allure 3 | **закрыт** | 2026-11-24 | `allure-bom`/`jupiter`/`selenide` 3.1.1 + aspectjweaver 1.9.27; результаты в `build/allure-results`; Awesome-отчёт в `build/allure-report`; 4/4 passed; контролируемая поломка → screenshot + page source, откат → зелёный |
 | 4. GitHub Actions | открыт | | |
 | 5. Telegram | открыт | | |
 | 6. Jenkins | открыт | | |
 | 7. Ревью и README | открыт | | |
+
+## 8. Фрагмент для README (подготовлен в фазе 3, вставляется в фазе 7)
+
+```markdown
+## Allure Report 3
+
+Прогон и отчёт:
+
+```bash
+./gradlew clean test -Dselenide.headless=true
+npx allure@3.33.0 generate build/allure-results --clean
+npx allure@3.33.0 open build/allure-report
+```
+
+Требуется Node.js ≥ 22.18.0. Результаты — `build/allure-results`, HTML-отчёт — `build/allure-report` (конфиг `allurerc.mjs`). Настройки отчёта: `name` и `output`. Вложения (скриншот и page source) добавляются только при падении.
+```
+
+Для CI (фаза 4/6): архивировать `build/allure-results`; отчёт публиковать Allure-плагином (Jenkins 3.0.0) или шагом `npx allure@3.33.0 generate`; `build/` в git не коммитить — он в `.gitignore`.
+
+**Jenkins (фаза 6)**: `allure-jenkins-plugin` 3.0.0 заявляет Allure 3 и встроенный Node.js; при проблемах fallback — `archiveArtifacts 'build/allure-results/**'` + `npx allure@3.33.0 generate` на агенте с Node ≥ 22.18 + `publishHTML` на `build/allure-report`.
