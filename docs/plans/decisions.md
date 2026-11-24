@@ -223,7 +223,7 @@ Tests: 1 failed of 4
 | Контролируемое падение (`EXISTING_REPOSITORY` → несуществующий) | [45396414475](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45396414475) | failure, 4 tests / 1 failed | `Telegram notification sent (failure)` |
 | Откат теста | [45397540787](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45397540787) | success, 4/4, Pages `status: passed` | `Telegram notification sent (success)` |
 
-Логи обоих прогонов: `token_like` = 0, `api.telegram.org` = 0, `chat_id=` = 0; секреты в env-блоке — `***`.
+Логи success- и failure-прогонов: `token_like` = 0, `api.telegram.org` = 0, `chat_id=` = 0; секреты в env-блоке — `***`.
 
 **Переиспользование в Jenkins (фаза 6)** — тот же файл и шаблон, другая доставка credentials:
 
