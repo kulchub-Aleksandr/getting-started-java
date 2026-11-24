@@ -55,7 +55,7 @@ jobs:
             echo "generated=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Upload Pages artifact
-        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.allure.outputs.generated == 'true'
+        if: always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master' && steps.allure.outputs.generated == 'true'
         uses: actions/upload-pages-artifact@v5
         with:
           path: build/allure-report
@@ -64,7 +64,7 @@ jobs:
         env:
           TEST_OUTCOME: ${{ steps.tests.outcome }}
           REPORT_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
-          PUBLISHED: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.allure.outputs.generated == 'true' }}
+          PUBLISHED: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master' && steps.allure.outputs.generated == 'true' }}
         run: |
           {
             echo "## UI tests"
@@ -82,13 +82,13 @@ jobs:
             if [ "$PUBLISHED" = "true" ]; then
               echo "- Report: ${REPORT_URL}"
             else
-              echo "- Report: not published for this event (published on push to master)"
+              echo "- Report: not published for this event (published on master push or manual run)"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
   deploy:
     needs: test
-    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.test.outputs.report-ready == 'true' }}
+    if: ${{ !cancelled() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master' && needs.test.outputs.report-ready == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     concurrency:
