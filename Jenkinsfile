@@ -40,7 +40,7 @@ pipeline {
       steps {
         catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
           script {
-            if (fileExists(env.ALLURE_RESULTS) && sh(script: "ls -A '${env.ALLURE_RESULTS}' 2>/dev/null | head -1", returnStatus: true) == 0) {
+            if (fileExists(env.ALLURE_RESULTS) && sh(script: "find '${env.ALLURE_RESULTS}' -mindepth 1 -maxdepth 1 -print -quit | grep -q .", returnStatus: true) == 0) {
               allure(
                 allureVersion: '3',
                 includeProperties: false,
@@ -61,7 +61,7 @@ pipeline {
     stage('Publish') {
       steps {
         script {
-          def hasJunit = sh(script: "ls ${env.TEST_RESULTS}/*.xml 2>/dev/null | head -1", returnStatus: true) == 0
+          def hasJunit = sh(script: "ls '${env.TEST_RESULTS}'/*.xml >/dev/null 2>&1", returnStatus: true) == 0
           def hasReport = fileExists(env.ALLURE_REPORT + '/index.html')
           if (!hasJunit) {
             error("JUnit XML not found in ${env.TEST_RESULTS}")
@@ -86,7 +86,7 @@ pipeline {
         }
       }
       script {
-        if (sh(script: "ls ${env.TEST_RESULTS}/*.xml 2>/dev/null | head -1", returnStatus: true) == 0) {
+        if (sh(script: "ls '${env.TEST_RESULTS}'/*.xml >/dev/null 2>&1", returnStatus: true) == 0) {
           try {
             junit testResults: "${env.TEST_RESULTS}/*.xml", allowEmptyResults: true
           } catch (Exception e) {
