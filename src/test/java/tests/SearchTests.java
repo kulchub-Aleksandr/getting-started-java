@@ -21,7 +21,7 @@ import static com.codeborne.selenide.Selenide.open;
 @Feature("Поиск на GitHub")
 public class SearchTests extends TestBase {
     private static final String EXISTING_QUERY = "qa.guru";
-    private static final String EXISTING_REPOSITORY = "qa-guru/niffler";
+    private static final String EXISTING_REPOSITORY = "qa-guru/nonexistent-987654321";
     private static final String MISSING_QUERY = "qwertyuiop-nonexistent-987654321";
 
     private static SearchPage openSearch() {
