@@ -175,6 +175,7 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 - push-run [45379157672](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45379157672) — зелёный, отчёт опубликован;
 - workflow_dispatch [45379628682](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45379628682) — зелёный, кэш Gradle hit, test job 52 с (первый 57 с);
 - push-run [45379934914](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45379934914) — зелёный, test job 30 с, deploy 9 с; артефакт `allure-results` 4 550 B скачан и содержит 4 result JSON; отчёт доступен без авторизации (HTTP 200, `<title>getting-started-java</title>`).
+- Контролируемое падение [45384436473](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45384436473): `EXISTING_REPOSITORY` временно заменён на `qa-guru/nonexistent-987654321` → `Run tests` failed (`ElementNotFound`/`NoSuchElementException` на `SearchTests.java:39`, 4 tests, 1 failed), но `Upload allure-results` (292 109 B; 4 result JSON + PNG-скриншот + HTML page source), `Generate Allure report`, `Upload Pages artifact`, `Job summary` и `deploy` (10 с) выполнились; опубликованный `summary.json` → `total 4, passed 3, failed 1`, `status: failed`. После отката — снова 4/4 и `status: passed`.
 
 **Для фазы 5 переиспользуется:** имя артефакта `allure-results`, URL отчёта `https://kulchub-aleksandr.github.io/getting-started-java/`, job `test` и его conclusion (`success`/`failure`) — источник статуса для Telegram.
 
@@ -186,8 +187,8 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 |---|---|---|---|---|
 | `allure-junit5` несовместим с JUnit 6.1.x | низкая | высокое | использовать `allure-jupiter` 3.1.1 (валидирован JUnit 6.1.0); проверить на 6.1.3 прогоном | **закрыт**: 4/4 passed на JUnit 6.1.3 |
 | Jenkins Allure plugin не поддерживает Allure 3 | низкая | среднее | plugin 3.0.0 поддерживает Allure 3; fallback — CLI + `publishHTML`/archive | решён |
-| `github.com/search` отдаёт captcha/rate-limit в CI | **высокая** | высокое | три прогона 2026-11-24 зелёные (4/4 каждый); `baseUrl` уже переопределяем; при блокировке — smoke-тег/отдельный CI-таргет, без правки тестов | открыт |
-| 4 поисковых запроса на прогон (2 теста + 2 параметра навигации) | средняя | высокое | не более одного поиска на тест; три прогона подряд зелёные (2026-11-24); при captcha — сократить параметризацию навигации до одного кейса | принят |
+| `github.com/search` отдаёт captcha/rate-limit в CI | **высокая** | высокое | четыре прогона 2026-11-24 зелёные (4/4 каждый); `baseUrl` уже переопределяем; при блокировке — smoke-тег/отдельный CI-таргет, без правки тестов | открыт |
+| 4 поисковых запроса на прогон (2 теста + 2 параметра навигации) | средняя | высокое | не более одного поиска на тест; четыре прогона подряд зелёные (2026-11-24); при captcha — сократить параметризацию навигации до одного кейса | принят |
 | Разметка github.com меняется (динамические CSS-классы, A/B-варианты выдачи) | высокая | среднее | локаторы только на `data-testid`/`aria-label`/текст; `results-list` отсутствует и в позитивной, и в негативной выдаче по-разному — негатив опирается на `search-sub-header` + отсутствие списка | принят |
 | `repo-name-link` содержит только имя репозитория (`selenide`, `niffler`), без owner | низкая | низкое | в параметризации передаётся короткое имя для проверки, полное (`owner/repo`) — для поиска ссылки | решён |
 | Поиск в headless может отдать иную сортировку/состав топ-результатов | средняя | среднее | проверяется наличие конкретной ссылки в выдаче, а не позиция элемента | принят |
