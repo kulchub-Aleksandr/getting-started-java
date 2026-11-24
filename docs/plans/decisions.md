@@ -52,11 +52,11 @@
 
 ```text
 src/test/java/
-  config/TestConfig.java          # system property -> env -> default
-  core/TestBase.java              # Configuration, AllureSelenide, @AfterAll closeWebDriver
+  config/TestConfig.java          # фаза 1: system property -> env -> default
+  core/TestBase.java              # фаза 1: Configuration в @BeforeAll, closeWebDriver в @AfterAll
   pages/SearchPage.java           # композиция $/$$, @Step, fluent
   pages/SearchResultsPage.java    # результаты поиска (если понадобится)
-  tests/SearchTests.java          # существует; перенос в пакет tests
+  tests/SearchTests.java          # фаза 1: перенесён из default package, наследует TestBase
 src/test/resources/
   logback-test.xml                # опционально, чтобы убрать SLF4J NOP (согласовать)
 .github/workflows/
@@ -64,6 +64,23 @@ src/test/resources/
 Jenkinsfile                       # фаза 6
 allurerc.mjs                      # фаза 3 (output/plugins), если не хватит CLI-флагов
 ```
+
+### 3.1 Конфигурация тестов (фаза 1)
+
+Фактические классы: `config.TestConfig` (разрешение значений), `core.TestBase` (abstract, `@BeforeAll` → `Configuration`, `@AfterAll` → `closeWebDriver()`), `tests.SearchTests extends TestBase`.
+
+Приоритет для каждого ключа: **system property → env → default**. Канонический `-D` имеет приоритет над Selenide-алиасом. `build.gradle` явно перечисляет только эти ключи в `tasks.withType(Test)`; `System.getProperties()` целиком не копируется.
+
+| Ключ | `-D` | Env | Default |
+|---|---|---|---|
+| `baseUrl` | `-DbaseUrl` (алиас `-Dselenide.baseUrl`) | `BASE_URL` | `https://github.com` |
+| `browser` | `-Dbrowser` (алиас `-Dselenide.browser`) | `BROWSER` | `chrome` |
+| `headless` | `-Dheadless` (алиас `-Dselenide.headless`) | `HEADLESS` | `false` |
+| `browserSize` | `-DbrowserSize` (алиас `-Dselenide.browserSize`) | `BROWSER_SIZE` | `1920x1080` |
+| `timeout` | `-Dtimeout=10s` / `-Dtimeout=500ms`; нативный `-Dselenide.timeout` — миллисекунды | `TIMEOUT` (`10s`) | `10s` (10000 ms) |
+| `remote` | `-Dremote` (алиас `-Dselenide.remote`) | `REMOTE` | пусто (локальный браузер) |
+
+`timeout`: значение без единицы трактуется как секунды; `ms` — миллисекунды. Порядок для `timeout`: `-Dtimeout` → `-Dselenide.timeout` (ms) → `TIMEOUT` → 10000.
 
 ## 4. Риски
 
@@ -74,7 +91,7 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 | `allure-junit5` несовместим с JUnit 6.1.x | низкая | высокое | использовать `allure-jupiter` 3.1.1 (валидирован JUnit 6.1.0); проверить на 6.1.3 прогоном | решён (осталась проверка прогоном) |
 | Jenkins Allure plugin не поддерживает Allure 3 | низкая | среднее | plugin 3.0.0 поддерживает Allure 3; fallback — CLI + `publishHTML`/archive | решён |
 | `github.com/search` отдаёт captcha/rate-limit в CI | **высокая** | высокое | headless, переопределяемый `baseUrl`, smoke-тег, минимум запросов; при блокировке — другой target | открыт |
-| Gradle не пробрасывает `-D` в test JVM | высокая | среднее | в фазе 1 явно `test { systemProperty ... }` или `systemProperties System.getProperties()`; проверить `-Dselenide.headless=true` | открыт |
+| Gradle не пробрасывает `-D` в test JVM | высокая | среднее | в фазе 1 явно `test { systemProperty ... }` или `systemProperties System.getProperties()`; проверить `-Dselenide.headless=true` | **решён (фаза 1)**: явный список ключей в `tasks.withType(Test)`; headed/headless/`-DbaseUrl` проверены |
 | Chrome 158 vs CDP Selenium 4.49 (warning в baseline) | средняя | низкое | warning не ломает тест; не включать CDP-фичи; при падении — обновление Selenide отдельным решением | принят |
 | Allure results пишутся не туда (`allure-results` vs `build/allure-results`) | средняя | среднее | явно задать `allure.results.directory` в `build.gradle`/`TestBase`, проверить генерацию | открыт |
 | Allure 3 `generate` без `-o` | средняя | низкое | проверить `npx allure generate --help`; иначе `allurerc.mjs` с `output` | открыт |
@@ -102,7 +119,7 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 | Фаза | Статус | Дата | Заметки |
 |---|---|---|---|
 | 0. Аудит | **закрыт** | 2026-11-24 | Baseline зелёный; совместимость проверена; S1–S12 подтверждены |
-| 1. TestBase | открыт | | |
+| 1. TestBase | **закрыт** | 2026-11-24 | `TestConfig` + `TestBase`; `SearchTests` в пакете `tests`; headed/headless/`-DbaseUrl`/env/сброс к дефолту проверены |
 | 2. Тесты + PageObject | открыт | | |
 | 3. Allure 3 | открыт | | |
 | 4. GitHub Actions | открыт | | |

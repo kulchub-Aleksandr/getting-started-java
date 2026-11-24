@@ -17,6 +17,27 @@ tasks.withType(JavaCompile) {
     options.encoding = 'UTF-8'
 }
 
-test {
+def testSystemProperties = [
+        'baseUrl',
+        'browser',
+        'headless',
+        'browserSize',
+        'timeout',
+        'remote',
+        'selenide.baseUrl',
+        'selenide.browser',
+        'selenide.headless',
+        'selenide.browserSize',
+        'selenide.timeout',
+        'selenide.remote'
+]
+
+tasks.withType(Test).configureEach {
     useJUnitPlatform()
+    testSystemProperties.each { name ->
+        def value = providers.systemProperty(name).orNull
+        if (value != null) {
+            systemProperty(name, value)
+        }
+    }
 }
