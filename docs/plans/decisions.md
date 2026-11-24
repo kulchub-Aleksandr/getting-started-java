@@ -249,7 +249,7 @@ withCredentials([
 
 ### 3.6 Jenkins (фаза 6)
 
-**Статус: в работе; сборки #1–#4 `SUCCESS`; `Jenkinsfile` в SCM (`e6a0f5e`), success-сценарий с JUnit XML/Allure проверен; Telegram заблокирован областью credentials; assertion/compile/missing-results ещё не завершены.**
+**Статус: в работе; основные сборки #1–#5 `SUCCESS`; `Jenkinsfile` в SCM (`cf51471`); success/assertion/compile/missing-results проверены на реальном агенте; Telegram заблокирован областью credentials — фаза не закрыта.**
 
 **Проверка предусловий 2026-11-24 (read-only, с Jenkins API token):** `https://jenkins.qa.guru/` отвечает `200`, `X-Jenkins: 2.581`; `/computer/api/json` доступен: `java-jdk21-jenkins-agent-1..5` online, labels `java,java-jdk21,<agent>,docker`; warm-agent без `docker`. Job `alekskulch-getting-started-java` существует (анонимно `404`, с токеном `200`); на момент проверки — inline Pipeline, build #2 `SUCCESS` (позже переключён на SCM). `/pluginManager/api/json` → `403` (нет прав администратора), поэтому версии плагинов через API не читаются; `/me` → `alekskulch`, authorities `/students,authenticated`. Label `docker` **не доказывает** наличие `docker.sock`. Telegram credentials в user store уже созданы: `telegram-bot-token`, `telegram-chat-id` (значения не читались).
 
@@ -265,7 +265,7 @@ withCredentials([
 | Прогон | `./gradlew --no-daemon clean test -Dselenide.headless=true` в `catchError(buildResult: 'FAILURE', stageResult: 'FAILURE')`, чтобы отчёт строился и при падении тестов |
 | Allure | `allure(allureVersion: '3', includeProperties: false, results: [[path: 'build/allure-results']], configPath: 'allurerc.mjs', report: 'build/allure-report', reportBuildPolicy: 'ALWAYS', resultPolicy: 'LEAVE_AS_IS')`; плагин вызывает CLI с `-o build/allure-report --config allurerc.mjs` (проверено по исходникам `ReportBuilder`), `index.html` — в корне `report` |
 | Артефакты | Всегда архивируются `build/allure-results/**`, `build/test-results/**`, `build/reports/**`, `build/allure-report/**`; ссылка на отчёт `${BUILD_URL}allure/`; описание сборки — ссылка на отчёт |
-| JUnit | `junit testResults: 'build/test-results/test/*.xml', allowEmptyResults: true` в `post { always }`; отсутствие XML — явная ошибка и `FAILURE`, а не зелёная сборка |
+| JUnit | `junit testResults: 'build/test-results/test/*.xml', allowEmptyResults: true` в `post { always }`; наличие XML проверяется через `ls 'dir'/*.xml >/dev/null 2>&1` (без `| head`, который маскирует exit code); отсутствие XML — явная ошибка и `FAILURE`, а не зелёная сборка |
 | Уведомление | `.github/scripts/notify-telegram.sh` (тот же, что в GHA) в `post { always }` по фактическому статусу; credentials `telegram-bot-token`, `telegram-chat-id`; `REPORT_PUBLISHED` — по наличию `build/allure-report/index.html`; без credentials — предупреждение и skip, сборка не падает |
 | Секреты | Selenoid URL и Telegram token/chat id — только Jenkins credentials; значений в Jenkinsfile нет; `withCredentials` маскирует их в консоли; `set -x` в скрипте уведомления отсутствует |
 
@@ -279,9 +279,20 @@ withCredentials([
 
 **Проверка сборки #4 (2026-11-24, Pipeline from SCM после push):** коммит `e6a0f5e` запушен в `origin/master`; job переключён с inline на `CpsScmFlowDefinition` (`https://github.com/kulchub-Aleksandr/getting-started-java.git`, `*/master`, `Jenkinsfile`, lightweight). [build #4](https://jenkins.qa.guru/job/alekskulch-getting-started-java/4/) — `SUCCESS`, checkout `e6a0f5e3918a1b97a35a87ade75b100059f09690`, `BUILD SUCCESSFUL in 33s`; JUnit `pass=4`, `fail=0`; 79 артефактов (`TEST-tests.SearchTests.xml`, `build/reports/tests/test/**`, `build/allure-report/index.html`, `allure-report.zip`); Allure `total 4, passed 4, status passed`; `/4/allure/` HTTP 200. Telegram снова skip (`CredentialNotFoundException`) — user-store credentials не видны pipeline; в консоли нет токена, `api.telegram.org`, `chat_id=`, Selenoid URL и `://user@`. SCM-переход подтверждён.
 
+**Матрица на реальном агенте (2026-11-24, временный job `alekskulch-getting-started-java-probe`, удалён после проверки):**
+
+| Сценарий | Build | Результат | JUnit | Allure | Что подтверждено |
+|---|---|---|---|---|---|
+| Success | основной #5 (`cf51471`) | `SUCCESS` | 4 passed, 0 failed | 4 passed, 0 failed, status `passed` | 79 артефактов, `test-results`/`reports`/HTML, `/5/allure/` HTTP 200, секретов нет; агент `java-jdk21-jenkins-agent-5`, `Browser: remote Selenoid (URL hidden)`; #4 и #5 повторно `SUCCESS` без залипших сессий, локальный Chrome не нужен |
+| Assertion failure | probe #5 | `FAILURE` | 3 passed, 1 failed | 3 passed, 1 failed, status `failed` | 85 артефактов, XML есть, вложения screenshot + page source (4 attachment-файла), отчёт HTTP 200, `catchError` не замаскировал падение |
+| Compile error | probe #4 | `FAILURE` | XML отсутствует (`testReport` 404) | отчёт отсутствует | `compileTestJava FAILED`, архив сохранён (1 файл), `Publish` упал на `JUnit XML not found`, уведомление не отменилось |
+| Missing results | probe #3 | `FAILURE` | XML отсутствует (`testReport` 404) | 4 passed, отчёт HTTP 200 | тесты прошли, `build/test-results/test` удалён, `Publish` упал на `JUnit XML not found`, зелёного статуса нет |
+
+**Найден и исправлен дефект проверки:** `ls .../*.xml 2>/dev/null | head -1` возвращал код `head`, поэтому отсутствие XML могло не обнаруживаться. Заменено на `ls 'dir'/*.xml >/dev/null 2>&1` (и `find ... | grep -q .` для `allure-results`), коммит `cf51471`; missing-results probe после исправления даёт `FAILURE`. В сценариях success/assertion/compile/missing-results Telegram неизменно пропускается с `CredentialNotFoundException`; значения секретов в консолях не найдены.
+
 **Контролируемое падение (2026-11-24):** временный job с тестом `IntentionalFailureTest` — `FAILURE`, 5 tests / 1 failed, Allure `status=failed` (4 passed, 1 failed), отчёт HTTP 200; Telegram снова skip (`CredentialNotFoundException`); тест удалён из workspace, job удалён после проверки. Это подтверждает `catchError` + генерацию отчёта при падении; Telegram failure ещё не проверен. Локальный dry-run `notify-telegram.sh` (`DRY_RUN=1`, dummy env) подтвердил ветки `REPORT_PUBLISHED=true/false` и `ARTIFACTS_URL`.
 
-**Открыто до закрытия фазы:** перенести/создать `telegram-bot-token` и `telegram-chat-id` в system scope (нужен администратор Jenkins), проверить Telegram success/failure; проверить assertion/compile-error/missing-results на реальном агенте; финальный `git diff --stat`.
+**Открыто до закрытия фазы:** только Telegram — перенести/создать `telegram-bot-token` и `telegram-chat-id` в system scope (нужен администратор Jenkins), затем проверить success/failure; остальные проверки матрицы выполнены, финальный `git diff --stat` — после последнего docs-коммита.
 
 ## 4. Риски
 
@@ -313,12 +324,12 @@ withCredentials([
 | Секреты не заданы (форк-PR, локальный прогон) | средняя | низкое | скрипт проверяет пустые env и выходит с `::notice::`/`exit 0`; проверено локальным запуском того же скрипта без секретов | принят |
 | Jenkins-агенты на JDK 21, проект разрабатывался на Java 25 | высокая | среднее | Gradle 9.6 требует Java 17+; проверить прогон на агенте; при несовместимости — JDK-агент настраивает администратор, версии проекта не менять | **закрыт**: build #1 на JDK 21 — `SUCCESS`, 4/4 |
 | Общий Selenoid недоступен/перегружен | средняя | высокое | health check перед прогоном не добавляем; при недоступности сборка падает; статус/браузеры проверить `/status` | принят; build #1 прошёл через Selenoid |
-| Selenide логирует remote URL с credentials | средняя | высокое | Jenkins `withCredentials` маскирует полное значение; проверить консоль на `user:`/`chat_id`/токен; при утечке — снизить логирование Selenide или перейти на username/password credentials | **закрыт для Selenoid**: в консоли #1–#4 URL и `user:` отсутствуют; Telegram-секреты не печатаются |
+| Selenide логирует remote URL с credentials | средняя | высокое | Jenkins `withCredentials` маскирует полное значение; проверить консоль на `user:`/`chat_id`/токен; при утечке — снизить логирование Selenide или перейти на username/password credentials | **закрыт для Selenoid**: в консоли #1–#5 URL и `user:` отсутствуют; Telegram-секреты не печатаются |
 | Нет прав на создание job/запуск в Jenkins | высокая | высокое | логин студента; job создаётся вручную или через API после проверки прав; `Jenkinsfile` хранится в репозитории | **закрыт**: job существует, build #2 `SUCCESS`; анонимный `404` — ограничение прав, не удаление job |
 | Jenkins за Keycloak SSO: пароль не работает для API | высокая | высокое | создать Jenkins API token (Profile → Configure → API Token) и передать его вне репозитория; Basic с паролем возвращает `401` | **закрыт**: API token работает, Basic с паролем — `401` |
-| `Jenkinsfile` отсутствует в remote `master`; job пока inline | высокая | среднее | запушить файл после явного разрешения (R7) и переключить job на Pipeline from SCM; до этого inline probe не считается финальным | **закрыт**: `e6a0f5e` в `origin/master`, job на SCM, build #4 `SUCCESS` |
+| `Jenkinsfile` отсутствует в remote `master`; job пока inline | высокая | среднее | запушить файл после явного разрешения (R7) и переключить job на Pipeline from SCM; до этого inline probe не считается финальным | **закрыт**: `cf51471` в `origin/master`, job на SCM, build #5 `SUCCESS` |
 | Telegram credentials в user store не видны pipeline | высокая | высокое | system-scope credentials (или folder scope) создаёт администратор; user-store `withCredentials` даёт `CredentialNotFoundException` | **открыт**: IDs `telegram-bot-token`/`telegram-chat-id` созданы в user store, но не видны; system store → `404` |
-| JUnit XML не публикуется или теряется | средняя | высокое | `junit` по `build/test-results/test/*.xml`; отсутствие XML — явная ошибка и `FAILURE`; архивировать `test-results` | **закрыт для success**: build #3 — JUnit 4/4, XML и `reports` в артефактах; failure/compile pending |
+| JUnit XML не публикуется или теряется | средняя | высокое | `junit` по `build/test-results/test/*.xml`; отсутствие XML — явная ошибка и `FAILURE`; архивировать `test-results`; проверка без `| head` | **закрыт**: success #5 — 4/4; assertion — 3/1 с XML; compile/missing — `FAILURE` без XML; дефект проверки исправлен в `cf51471` |
 | Allure CLI в Jenkins 3.13.0, локально/GHA 3.33.0 | низкая | низкое | версия приходит из installation `Allure 3`; отчёт 4/4 сгенерирован; зафиксировать расхождение, версии проекта не менять | принят |
 
 ## 5. Секреты и доступы (без значений)
@@ -354,7 +365,7 @@ withCredentials([
 | 3. Allure 3 | **закрыт** | 2026-11-24 | `allure-bom`/`jupiter`/`selenide` 3.1.1 + aspectjweaver 1.9.27; результаты в `build/allure-results`; Awesome-отчёт в `build/allure-report`; 4/4 passed; контролируемая поломка → screenshot + page source, откат → зелёный |
 | 4. GitHub Actions | **закрыт** | 2026-11-24 | Workflow `tests.yml`: push/PR/dispatch, concurrency, timeout 30, JDK 25 + Gradle cache; браузер — Selenium Manager + предустановленный Chrome 157; `allure-results` артефакт при любом исходе; Awesome-отчёт на Pages; 3 зелёных run, кэш hit, test job 57 → 52 → 30 с |
 | 5. Telegram | **закрыт** | 2026-11-24 | `curl` к Bot API без сторонних action; `.github/scripts/notify-telegram.sh` + шаг `Notify Telegram` (`always() && !cancelled()`); HTML, падения из JUnit XML; в сообщении имя коммита (`head_commit.message`/`pull_request.title`, fallback — короткий SHA); success [45395989599](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45395989599), failure [45396414475](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45396414475), откат [45397540787](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45397540787); токена в логах нет; без секретов — notice + skip |
-| 6. Jenkins | в работе | 2026-11-24 | `Jenkinsfile` в SCM (`e6a0f5e`), job на SCM; build #1–#4 `SUCCESS`, 4/4; build #4: JUnit 4/4, `test-results`/`reports`/Allure в артефактах, отчёт HTTP 200; Selenoid remote, секреты замаскированы; Telegram credentials есть в user store, но pipeline их не видит (`CredentialNotFoundException`), нужен system scope; assertion/compile/missing-results pending |
+| 6. Jenkins | в работе | 2026-11-24 | `Jenkinsfile` в SCM (`cf51471`), job на SCM; build #1–#5 `SUCCESS`; матрица: assertion probe — `FAILURE` 3/1 + вложения, compile — `FAILURE` без XML, missing-results — `FAILURE` без XML при Allure 4/4; JUnit/Allure/архивы работают, дефект `ls|head` исправлен; Telegram не видит user-store credentials (`CredentialNotFoundException`), нужен system scope |
 | 7. Ревью и README | открыт | | |
 
 ## 8. Фрагмент для README (подготовлен в фазе 3, вставляется в фазе 7)
