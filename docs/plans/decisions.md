@@ -84,6 +84,8 @@ src/test/resources/
   logback-test.xml                # опционально, чтобы убрать SLF4J NOP (согласовать)
 .github/workflows/
   tests.yml                       # фаза 4
+.github/scripts/
+  notify-telegram.sh              # фаза 5: шаблон сообщения + отправка (переиспользуется в Jenkins)
 Jenkinsfile                       # фаза 6
 allurerc.mjs                      # фаза 3 (output/plugins), если не хватит CLI-флагов
 ```
@@ -179,6 +181,70 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 
 **Для фазы 5 переиспользуется:** имя артефакта `allure-results`, URL отчёта `https://kulchub-aleksandr.github.io/getting-started-java/`, job `test` и его conclusion (`success`/`failure`) — источник статуса для Telegram.
 
+### 3.5 Telegram (фаза 5)
+
+**Способ: `curl` к Bot API, без сторонних action.** Обоснование: нет зависимости от чужого репозитория и его мажорных обновлений; полный контроль над текстом, экранированием, ретраями и пропуском без секретов; тот же bash-скрипт переиспользуется в Jenkins (`withCredentials`), меняется только способ доставки credentials. Готовый action (`appleboy/telegram-action` и подобные) отклонён: добавляет сторонний код и не даёт переиспользовать шаблон в Jenkins.
+
+Файлы: `.github/scripts/notify-telegram.sh` (шаблон сообщения + отправка), шаг `Notify Telegram` в job `test` с `if: always() && !cancelled()`.
+
+| Параметр | Реализация |
+|---|---|
+| Триггер | один итоговый шаг в конце job `test`; `success` и `failure` отправляются, `cancelled` → `::notice::` и skip |
+| Статус | `steps.tests.outcome`; пустой/`skipped` (тесты не запускались) трактуется как `failure` |
+| Ветка / SHA | `github.head_ref || github.ref_name`; `github.sha` → первые 7 символов |
+| Формат | `parse_mode=HTML`; экранируются только `&`, `<`, `>`; MarkdownV2 не используется, поэтому `_`, `.`, `[`, `]`, `(`, `)` в именах тестов безопасны |
+| Упавшие тесты | `build/test-results/test/*.xml`: `<testcase>` + `<failure|error>`; XML-сущности раскрываются, затем HTML-экранируются; до 10 имён, имя ≤ 160 символов, остаток — «… and N more» |
+| Ссылки | run, Allure Pages (если `REPORT_PUBLISHED=true`) или артефакты run; `disable_web_page_preview=true` |
+| Длина | ограничена 10 именами; лимит Bot API 4096 символов не достигается |
+| Секреты | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` — только GitHub Secrets, передаются `env` только в шаг уведомления; GitHub маскирует их как `***` |
+| Без секретов | пустые значения → `::notice::Telegram credentials are not configured, notification skipped`, `exit 0` |
+| Ошибки API | 3 попытки с паузой 2 и 4 с; затем `::warning::` с HTTP-кодом и `description` из ответа, `exit 0`; токен и URL не логируются (`curl --silent`, без `set -x`) |
+| Локальная проверка | `DRY_RUN=1` печатает готовый HTML в stdout без сети и без секретов |
+
+Шаблон сообщения (пример для упавшего прогона):
+
+```text
+<b>UI tests: FAILURE</b>
+
+Branch: <code>master</code>
+Commit: <code>8755267</code>
+Run: <a href="https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45396414475">run details</a>
+Allure report: <a href="https://kulchub-aleksandr.github.io/getting-started-java/">open report</a>
+Tests: 1 failed of 4
+
+1. <b>SearchTests</b> — Поиск существующего запроса возвращает релевантный репозиторий
+```
+
+Проверено 2026-11-24:
+
+| Прогон | Run | Результат | Уведомление |
+|---|---|---|---|
+| Зелёный (workflow + скрипт) | [45395989599](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45395989599) | success, 4/4 | `Telegram notification sent (success)` |
+| Контролируемое падение (`EXISTING_REPOSITORY` → несуществующий) | [45396414475](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45396414475) | failure, 4 tests / 1 failed | `Telegram notification sent (failure)` |
+| Откат + эта запись | см. журнал фазы 5 | success | `Telegram notification sent (success)` |
+
+Логи обоих прогонов: `token_like` = 0, `api.telegram.org` = 0, `chat_id=` = 0; секреты в env-блоке — `***`.
+
+**Переиспользование в Jenkins (фаза 6)** — тот же файл и шаблон, другая доставка credentials:
+
+```groovy
+withCredentials([
+  string(credentialsId: 'telegram-bot-token', variable: 'TELEGRAM_BOT_TOKEN'),
+  string(credentialsId: 'telegram-chat-id', variable: 'TELEGRAM_CHAT_ID')
+]) {
+  withEnv([
+    "STATUS=${currentBuild.currentResult == 'SUCCESS' ? 'success' : 'failure'}",
+    "BRANCH=${env.BRANCH_NAME ?: 'master'}",
+    "COMMIT_SHA=${env.GIT_COMMIT}",
+    "RUN_URL=${env.BUILD_URL}",
+    "REPORT_URL=${env.BUILD_URL}allure/",
+    "REPORT_PUBLISHED=true"
+  ]) {
+    sh 'bash .github/scripts/notify-telegram.sh'
+  }
+}
+```
+
 ## 4. Риски
 
 **Baseline (2026-11-24):** `.\gradlew.bat test` (headed, локальный Chrome) — **зелёный**: `SearchTests.successfulSearchTest` 1/1, 8.9 с. В stderr: SLF4J NOP и `WARNING: Unable to find CDP implementation matching 158` (несовпадение CDP Selenium 4.49 и Chrome 158, не фатально).
@@ -204,14 +270,18 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 | Chrome в `ubuntu-latest` обновляется, драйвер/Chrome расходятся | средняя | среднее | версии логируются; Selenium Manager добирает драйвер; при поломке — `setup-chrome@v2` с пином, без изменения Selenide | принят |
 | Публикация отчёта для PR/форков | низкая | среднее | deploy только для `master` на `push`/`workflow_dispatch`; PR получает артефакт, но не Pages | принят |
 | `workflow_dispatch` с не-master ref не публикует отчёт | низкая | низкое | осознанно: деплой только с `master`; для проверки запускать dispatch на `master` | принят |
-| Секреты Telegram попадают в лог | низкая | высокое | secrets + маскирование + отсутствие echo | открыт |
+| Секреты Telegram попадают в лог | низкая | высокое | secrets + маскирование (`***`) + отсутствие `echo`/`set -x`; `curl --silent`, URL с токеном не печатается | **закрыт (фаза 5)**: `token_like`/`api.telegram.org`/`chat_id=` = 0 в логах success и failure |
+| Telegram API недоступен, 429 или неверный `chat_id` | средняя | низкое | 3 попытки, затем `::warning::` с HTTP-кодом и `description`, `exit 0`; сборка не падает | принят |
+| Секреты не заданы (форк-PR, локальный прогон) | средняя | низкое | скрипт проверяет пустые env и выходит с `::notice::`/`exit 0`; проверено локальным запуском того же скрипта без секретов | принят |
 
 ## 5. Секреты и доступы (без значений)
 
 | Имя | Где хранится | Владелец | Фаза |
 |---|---|---|---|
-| `TELEGRAM_BOT_TOKEN` | GitHub Secrets / Jenkins Credentials | | 5–6 |
-| `TELEGRAM_CHAT_ID` | GitHub Secrets / Jenkins Credentials | | 5–6 |
+| `TELEGRAM_BOT_TOKEN` | GitHub Secrets репозитория `kulchub-Aleksandr/getting-started-java` (задан 2026-11-24); в Jenkins — credentials `telegram-bot-token` (фаза 6) | владелец репозитория | 5–6 |
+| `TELEGRAM_CHAT_ID` | GitHub Secrets репозитория `kulchub-Aleksandr/getting-started-java` (задан 2026-11-24); в Jenkins — credentials `telegram-chat-id` (фаза 6) | владелец репозитория | 5–6 |
+
+Значения в репозитории, workflow и документации отсутствуют; `.env` добавлен в `.gitignore`.
 
 ## 6. Артефакты и ссылки CI
 
@@ -219,7 +289,8 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 |---|---|---|---|
 | `build/allure-results` | artifact GHA **`allure-results`** / Jenkins | [run 45379934914](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45379934914/artifacts) | 3–6 |
 | HTML-отчёт `build/allure-report` | GitHub Pages / Jenkins | https://kulchub-aleksandr.github.io/getting-started-java/ | 3–6 |
-| Workflow | `.github/workflows/tests.yml` | [run 45379934914](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45379934914) | 4 |
+| Workflow | `.github/workflows/tests.yml` | [run 45396414475](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45396414475) | 4 |
+| Уведомление Telegram | шаг `Notify Telegram` + `.github/scripts/notify-telegram.sh` | run [45395989599](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45395989599) (success), [45396414475](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45396414475) (failure) | 5–6 |
 | `Jenkinsfile` | корень | | 6 |
 
 ## 7. Журнал фаз
@@ -231,7 +302,7 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 | 2. Тесты + PageObject | **закрыт** | 2026-11-24 | 3 page-класса (композиция `$`/`$$`), 3 метода тестов / 4 выполнения; headless дважды зелёный (8.6 с и ~8 с); локаторов и `sleep` в `tests/` нет; TestBase/конфиг/build.gradle не менялись |
 | 3. Allure 3 | **закрыт** | 2026-11-24 | `allure-bom`/`jupiter`/`selenide` 3.1.1 + aspectjweaver 1.9.27; результаты в `build/allure-results`; Awesome-отчёт в `build/allure-report`; 4/4 passed; контролируемая поломка → screenshot + page source, откат → зелёный |
 | 4. GitHub Actions | **закрыт** | 2026-11-24 | Workflow `tests.yml`: push/PR/dispatch, concurrency, timeout 30, JDK 25 + Gradle cache; браузер — Selenium Manager + предустановленный Chrome 157; `allure-results` артефакт при любом исходе; Awesome-отчёт на Pages; 3 зелёных run, кэш hit, test job 57 → 52 → 30 с |
-| 5. Telegram | открыт | | |
+| 5. Telegram | **закрыт** | 2026-11-24 | `curl` к Bot API без сторонних action; `.github/scripts/notify-telegram.sh` + шаг `Notify Telegram` (`always() && !cancelled()`); HTML, падения из JUnit XML; success run 45395989599 и failure run 45396414475 доставлены; токена в логах нет; без секретов — notice + skip |
 | 6. Jenkins | открыт | | |
 | 7. Ревью и README | открыт | | |
 
