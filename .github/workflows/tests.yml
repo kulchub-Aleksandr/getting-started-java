@@ -93,6 +93,7 @@ jobs:
           STATUS: ${{ steps.tests.outcome }}
           BRANCH: ${{ github.head_ref || github.ref_name }}
           COMMIT_SHA: ${{ github.sha }}
+          COMMIT_NAME: ${{ github.event.head_commit.message || github.event.pull_request.title || '' }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           REPORT_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
           REPORT_PUBLISHED: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/master' && steps.allure.outputs.generated == 'true' }}

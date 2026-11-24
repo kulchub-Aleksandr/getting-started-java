@@ -191,7 +191,7 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 |---|---|
 | Триггер | один итоговый шаг в конце job `test`; `success` и `failure` отправляются, `cancelled` → `::notice::` и skip |
 | Статус | `steps.tests.outcome`; пустой/`skipped` (тесты не запускались) трактуется как `failure` |
-| Ветка / SHA | `github.head_ref || github.ref_name`; `github.sha` → первые 7 символов |
+| Ветка / коммит | `github.head_ref || github.ref_name`; имя коммита — `github.event.head_commit.message` (push) или `github.event.pull_request.title` (PR), первая строка, ≤ 120 символов; если имени нет (`workflow_dispatch`) — короткий `github.sha` |
 | Формат | `parse_mode=HTML`; экранируются только `&`, `<`, `>`; MarkdownV2 не используется, поэтому `_`, `.`, `[`, `]`, `(`, `)` в именах тестов безопасны |
 | Упавшие тесты | `build/test-results/test/*.xml`: `<testcase>` + `<failure|error>`; XML-сущности раскрываются, затем HTML-экранируются; до 10 имён, имя ≤ 160 символов, остаток — «… and N more» |
 | Ссылки | run, Allure Pages (если `REPORT_PUBLISHED=true`) или артефакты run; `disable_web_page_preview=true` |
@@ -207,7 +207,7 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 <b>UI tests: FAILURE</b>
 
 Branch: <code>master</code>
-Commit: <code>8755267</code>
+Commit: Add phase 5 Telegram notification
 Run: <a href="https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45396414475">run details</a>
 Allure report: <a href="https://kulchub-aleksandr.github.io/getting-started-java/">open report</a>
 Tests: 1 failed of 4
@@ -228,6 +228,7 @@ Tests: 1 failed of 4
 **Переиспользование в Jenkins (фаза 6)** — тот же файл и шаблон, другая доставка credentials:
 
 ```groovy
+def commitName = sh(returnStdout: true, script: 'git log -1 --pretty=%s').trim()
 withCredentials([
   string(credentialsId: 'telegram-bot-token', variable: 'TELEGRAM_BOT_TOKEN'),
   string(credentialsId: 'telegram-chat-id', variable: 'TELEGRAM_CHAT_ID')
@@ -236,6 +237,7 @@ withCredentials([
     "STATUS=${currentBuild.currentResult == 'SUCCESS' ? 'success' : 'failure'}",
     "BRANCH=${env.BRANCH_NAME ?: 'master'}",
     "COMMIT_SHA=${env.GIT_COMMIT}",
+    "COMMIT_NAME=${commitName}",
     "RUN_URL=${env.BUILD_URL}",
     "REPORT_URL=${env.BUILD_URL}allure/",
     "REPORT_PUBLISHED=true"
@@ -302,7 +304,7 @@ withCredentials([
 | 2. Тесты + PageObject | **закрыт** | 2026-11-24 | 3 page-класса (композиция `$`/`$$`), 3 метода тестов / 4 выполнения; headless дважды зелёный (8.6 с и ~8 с); локаторов и `sleep` в `tests/` нет; TestBase/конфиг/build.gradle не менялись |
 | 3. Allure 3 | **закрыт** | 2026-11-24 | `allure-bom`/`jupiter`/`selenide` 3.1.1 + aspectjweaver 1.9.27; результаты в `build/allure-results`; Awesome-отчёт в `build/allure-report`; 4/4 passed; контролируемая поломка → screenshot + page source, откат → зелёный |
 | 4. GitHub Actions | **закрыт** | 2026-11-24 | Workflow `tests.yml`: push/PR/dispatch, concurrency, timeout 30, JDK 25 + Gradle cache; браузер — Selenium Manager + предустановленный Chrome 157; `allure-results` артефакт при любом исходе; Awesome-отчёт на Pages; 3 зелёных run, кэш hit, test job 57 → 52 → 30 с |
-| 5. Telegram | **закрыт** | 2026-11-24 | `curl` к Bot API без сторонних action; `.github/scripts/notify-telegram.sh` + шаг `Notify Telegram` (`always() && !cancelled()`); HTML, падения из JUnit XML; success [45395989599](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45395989599), failure [45396414475](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45396414475), откат [45397540787](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45397540787); токена в логах нет; без секретов — notice + skip |
+| 5. Telegram | **закрыт** | 2026-11-24 | `curl` к Bot API без сторонних action; `.github/scripts/notify-telegram.sh` + шаг `Notify Telegram` (`always() && !cancelled()`); HTML, падения из JUnit XML; в сообщении имя коммита (`head_commit.message`/`pull_request.title`, fallback — короткий SHA); success [45395989599](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45395989599), failure [45396414475](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45396414475), откат [45397540787](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45397540787); токена в логах нет; без секретов — notice + skip |
 | 6. Jenkins | открыт | | |
 | 7. Ревью и README | открыт | | |
 

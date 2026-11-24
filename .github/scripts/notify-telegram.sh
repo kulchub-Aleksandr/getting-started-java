@@ -11,6 +11,7 @@ fi
 STATUS="${STATUS:-failure}"
 BRANCH="${BRANCH:-unknown}"
 COMMIT_SHA="${COMMIT_SHA:-unknown}"
+COMMIT_NAME="${COMMIT_NAME:-}"
 RUN_URL="${RUN_URL:-}"
 REPORT_URL="${REPORT_URL:-}"
 ARTIFACTS_URL="${ARTIFACTS_URL:-}"
@@ -38,6 +39,18 @@ xml_unescape() {
 html_escape() {
   sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g'
 }
+
+commit_name="${COMMIT_NAME%%$'\n'*}"
+commit_name="${commit_name#"${commit_name%%[![:space:]]*}"}"
+commit_name="${commit_name%"${commit_name##*[![:space:]]}"}"
+if [ "${#commit_name}" -gt 120 ]; then
+  commit_name="${commit_name:0:117}..."
+fi
+if [ -n "$commit_name" ]; then
+  commit_line="Commit: $(printf '%s' "$commit_name" | html_escape)"
+else
+  commit_line="Commit: <code>${short_sha}</code>"
+fi
 
 total_tests=0
 failed_tests=()
@@ -92,7 +105,7 @@ fi
 
 message="<b>${headline}</b>"$'\n\n'
 message+="Branch: <code>$(printf '%s' "$BRANCH" | html_escape)</code>"$'\n'
-message+="Commit: <code>${short_sha}</code>"$'\n'
+message+="${commit_line}"$'\n'
 if [ -n "$RUN_URL" ]; then
   message+="Run: <a href=\"${RUN_URL}\">run details</a>"$'\n'
 fi
