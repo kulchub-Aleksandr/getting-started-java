@@ -221,7 +221,7 @@ Tests: 1 failed of 4
 |---|---|---|---|
 | Зелёный (workflow + скрипт) | [45395989599](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45395989599) | success, 4/4 | `Telegram notification sent (success)` |
 | Контролируемое падение (`EXISTING_REPOSITORY` → несуществующий) | [45396414475](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45396414475) | failure, 4 tests / 1 failed | `Telegram notification sent (failure)` |
-| Откат + эта запись | см. журнал фазы 5 | success | `Telegram notification sent (success)` |
+| Откат теста | [45397540787](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45397540787) | success, 4/4, Pages `status: passed` | `Telegram notification sent (success)` |
 
 Логи обоих прогонов: `token_like` = 0, `api.telegram.org` = 0, `chat_id=` = 0; секреты в env-блоке — `***`.
 
@@ -302,7 +302,7 @@ withCredentials([
 | 2. Тесты + PageObject | **закрыт** | 2026-11-24 | 3 page-класса (композиция `$`/`$$`), 3 метода тестов / 4 выполнения; headless дважды зелёный (8.6 с и ~8 с); локаторов и `sleep` в `tests/` нет; TestBase/конфиг/build.gradle не менялись |
 | 3. Allure 3 | **закрыт** | 2026-11-24 | `allure-bom`/`jupiter`/`selenide` 3.1.1 + aspectjweaver 1.9.27; результаты в `build/allure-results`; Awesome-отчёт в `build/allure-report`; 4/4 passed; контролируемая поломка → screenshot + page source, откат → зелёный |
 | 4. GitHub Actions | **закрыт** | 2026-11-24 | Workflow `tests.yml`: push/PR/dispatch, concurrency, timeout 30, JDK 25 + Gradle cache; браузер — Selenium Manager + предустановленный Chrome 157; `allure-results` артефакт при любом исходе; Awesome-отчёт на Pages; 3 зелёных run, кэш hit, test job 57 → 52 → 30 с |
-| 5. Telegram | **закрыт** | 2026-11-24 | `curl` к Bot API без сторонних action; `.github/scripts/notify-telegram.sh` + шаг `Notify Telegram` (`always() && !cancelled()`); HTML, падения из JUnit XML; success run 45395989599 и failure run 45396414475 доставлены; токена в логах нет; без секретов — notice + skip |
+| 5. Telegram | **закрыт** | 2026-11-24 | `curl` к Bot API без сторонних action; `.github/scripts/notify-telegram.sh` + шаг `Notify Telegram` (`always() && !cancelled()`); HTML, падения из JUnit XML; success [45395989599](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45395989599), failure [45396414475](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45396414475), откат [45397540787](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45397540787); токена в логах нет; без секретов — notice + skip |
 | 6. Jenkins | открыт | | |
 | 7. Ревью и README | открыт | | |
 
