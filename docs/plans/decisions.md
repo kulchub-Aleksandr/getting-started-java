@@ -33,7 +33,13 @@
 | Allure Java | `allure-bom` + `allure-jupiter` + `allure-selenide` **3.1.1** | [Maven Central](https://repo1.maven.org/maven2/io/qameta/allure/allure-jupiter/maven-metadata.xml); Java 17+; JUnit 6 / Selenide 7.x | 3 |
 | Allure CLI | npm `allure` **3.33.0** (`npx allure@3.33.0`), Node.js **≥ 22.18.0** (локально 24.15.0) | [registry.npmjs.org/allure](https://registry.npmjs.org/allure/latest), [Allure 3 README](https://github.com/allure-framework/allure3/blob/main/README.md); `engines.node` в npm-манифесте; проверено `npx allure@3.33.0 --version` → `3.33.0` | 3 |
 | AspectJ Weaver | **1.9.27** (только test runtime, `-javaagent`) | [Maven Central](https://repo1.maven.org/maven2/org/aspectj/aspectjweaver/maven-metadata.xml); требуется для `@Step`/`@Attachment` | 3 |
-| GitHub Actions | `ubuntu-latest` + `actions/setup-java` (Temurin 25) | Chrome/ChromeDriver предустановлены; мажор `setup-java` требует проверки | 4 |
+| GitHub Actions runner | `ubuntu-latest` = Ubuntu 24.04 | [runner image](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md); Chrome/ChromeDriver `157.0.8103.78`, Node.js `22.23.5` предустановлены; версии подтверждены логом run | 4 |
+| `actions/checkout` | **v7** (v7.0.1) | [releases](https://github.com/actions/checkout/releases); текущий мажор | 4 |
+| `actions/setup-java` | **v6** (v6.3.0), `distribution: temurin`, `java-version: '25'`, `cache: gradle` | [README](https://github.com/actions/setup-java); v1–v4 deprecated, v6 — текущий; Java 25 и Gradle-кэш подтверждены run | 4 |
+| `actions/upload-artifact` | **v7** (v7.0.2) | [releases](https://github.com/actions/upload-artifact/releases) | 4 |
+| `actions/upload-pages-artifact` | **v5** (v5.0.0) | [README](https://github.com/actions/upload-pages-artifact) | 4 |
+| `actions/deploy-pages` | **v5** (v5.0.1) | [README](https://github.com/actions/deploy-pages) | 4 |
+| Allure CLI в CI | Node.js `22.23.5` (runner) + `npx --yes allure@3.33.0` | та же версия, что локально; Node ≥ 22.18 | 4 |
 | Jenkins | `allure-jenkins-plugin` **3.0.0** (требует Jenkins ≥ 2.541.3) | [plugins.jenkins.io](https://plugins.jenkins.io/allure-jenkins-plugin/) | 6 |
 
 ### 2.1 Совместимость (проверено 2026-11-24)
@@ -49,7 +55,8 @@
 | Каталог результатов Allure Java | **По умолчанию `allure-results` в рабочем каталоге**, не `build/allure-results` (последнее — дефолт Gradle-плагина Allure, который мы не применяем) | прогон без явной настройки + README `allure-jupiter` («usually `build/allure-results` for Gradle» относится к плагину) | Фаза 3: явно `systemProperty 'allure.results.directory'` → `build/allure-results` |
 | Selenide 7.18.2 × Java 25 | **Да (эмпирически)**: baseline-прогон зелёный на Java 25.0.5; официального заявления про Java 25 нет | `build/test-results/test/TEST-SearchTests.xml`; [Selenide 7.18.2](https://github.com/selenide/selenide/releases/tag/v7.18.2) | Ограничений не вносим; при проблемах в CI — отдельное решение |
 | Jenkins Allure plugin × Allure 3 | **Да**: plugin 3.0.0, «Recommended Allure 3» по умолчанию, встроенный Node.js | [plugins.jenkins.io/allure-jenkins-plugin](https://plugins.jenkins.io/allure-jenkins-plugin/) | Фаза 6: использовать plugin 3.0.0; fallback CLI + `publishHTML` не обязателен |
-| GHA: Chrome/драйвер на `ubuntu-latest` | **Да, ставить не нужно**: образ (24.04/26.04) содержит Google Chrome 157 + ChromeDriver 157 + Selenium server 4.52 | [Ubuntu 26.04](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2604-Readme.md), [Ubuntu 24.04](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md) | Фаза 4: без шага установки браузера; `browser-actions/setup-chrome@v2` — только для пина версии |
+| GHA: Chrome/драйвер на `ubuntu-latest` | **Да, ставить не нужно**: образ 24.04 содержит Google Chrome `157.0.8103.78` + ChromeDriver `157.0.8103.78`; run подтвердил обе версии | [Ubuntu 24.04](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md), лог run [45379934914](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45379934914) | Фаза 4: шага установки браузера нет; Selenium Manager использует предустановленный Chrome |
+| GHA Pages: `upload-pages-artifact@v5` + `deploy-pages@v5` | **Да**: отдельный deploy job, `pages: write` + `id-token: write`, environment `github-pages`; Pages source — GitHub Actions (`build_type=workflow`) | [deploy-pages README](https://github.com/actions/deploy-pages), [upload-pages-artifact](https://github.com/actions/upload-pages-artifact) | Фаза 4: отчёт опубликован на https://kulchub-aleksandr.github.io/getting-started-java/ |
 | Selenium Manager vs setup-action | **Selenium Manager** встроен в Selenium 4.6+/4.49; сам находит/скачивает драйвер и браузер; `setup-chrome@v2` ставит конкретную версию Chrome + совместимый ChromeDriver | [Selenium Manager](https://www.selenium.dev/documentation/selenium_manager/), [setup-chrome](https://github.com/browser-actions/setup-chrome) | Фаза 4: по умолчанию Selenium Manager + предустановленный Chrome; setup-action — если нужен пин |
 | Selenide 7.18.2: `PageObject` / `open(Class)` / `@Url` | **Отсутствуют**: в `selenide-core-7.18.2.jar` нет `com.codeborne.selenide.PageObject` и аннотации `@Url`; у `Selenide.open` нет перегрузки `open(Class)` — только `open(String, Class)` | `jar tf` + `javap` по артефакту 7.18.2 (проверено 2026-11-24) | S2/S6 адаптированы: обычные page-классы + `open("/search", SearchPage.class)`; `@FindBy` не используется |
 
@@ -147,6 +154,30 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 
 **Контролируемая поломка** (2026-11-24): `EXISTING_REPOSITORY` временно заменён на `qa-guru/nonexistent-987654321` → `successfulSearchTest` failed; в отчёте у упавшего шага `Screenshot` (`image/png`, 150 462 B) и `Page source` (`text/html`, 205 109 B); `summary.json` → `total 4, passed 3, failed 1`, `status: failed`. После отката: 4/4 passed, `status: passed`, вложений нет.
 
+### 3.4 GitHub Actions (фаза 4)
+
+Файл: `.github/workflows/tests.yml`. Триггеры `push`, `pull_request`, `workflow_dispatch`; `concurrency` по `${{ github.workflow }}-${{ github.ref }}` с `cancel-in-progress: true`; job `test` — `timeout-minutes: 30`.
+
+| Блок | Реализация |
+|---|---|
+| Права | workflow: `contents: read`; deploy job: `pages: write`, `id-token: write` (без `contents: write`, gh-pages-ветка не используется) |
+| JDK | `actions/setup-java@v6`, Temurin 25, `cache: gradle` (кэш зависимостей + wrapper) |
+| Браузер/драйвер | **Вариант A**: Selenium Manager + предустановленный в runner Chrome; отдельного шага установки нет, шаг `Browser versions` только логирует версии |
+| Прогон | `./gradlew clean test -Dselenide.headless=true` — та же команда и тот же ключ, что локально; `HEADLESS`/`BROWSER` env не задаются, локальный дефолт остаётся headed |
+| Результаты | `actions/upload-artifact@v7`, имя **`allure-results`**, `if: always()`, retention 14 дней |
+| Отчёт | `npx --yes allure@3.33.0 generate build/allure-results --clean` (та же версия CLI, что локально) |
+| Публикация | `upload-pages-artifact@v5` + отдельный job `deploy` (`deploy-pages@v5`), environment `github-pages`; только для `master` при `push`/`workflow_dispatch`, PR и форки отчёт не публикуют |
+| Summary | `$GITHUB_STEP_SUMMARY`: статус шага тестов, total/passed/failed/broken/skipped из `build/allure-report/summary.json`, ссылка на отчёт |
+
+**Обоснование варианта A:** runner уже содержит согласованные Chrome и ChromeDriver, поэтому Selenium Manager не скачивает драйвер и не добавляет шаг/версию; локально и в CI используется один и тот же механизм Selenide. Риск — обновление Chrome в образе; при поломке мажорного драйвера fallback — `browser-actions/setup-chrome@v2` с пином версии (пока не нужен).
+
+**Проверено 2026-11-24:**
+- push-run [45379157672](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45379157672) — зелёный, отчёт опубликован;
+- workflow_dispatch [45379628682](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45379628682) — зелёный, кэш Gradle hit, test job 52 с (первый 57 с);
+- push-run [45379934914](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45379934914) — зелёный, test job 30 с, deploy 9 с; артефакт `allure-results` 4 550 B скачан и содержит 4 result JSON; отчёт доступен без авторизации (HTTP 200, `<title>getting-started-java</title>`).
+
+**Для фазы 5 переиспользуется:** имя артефакта `allure-results`, URL отчёта `https://kulchub-aleksandr.github.io/getting-started-java/`, job `test` и его conclusion (`success`/`failure`) — источник статуса для Telegram.
+
 ## 4. Риски
 
 **Baseline (2026-11-24):** `.\gradlew.bat test` (headed, локальный Chrome) — **зелёный**: `SearchTests.successfulSearchTest` 1/1, 8.9 с. В stderr: SLF4J NOP и `WARNING: Unable to find CDP implementation matching 158` (несовпадение CDP Selenium 4.49 и Chrome 158, не фатально).
@@ -155,8 +186,8 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 |---|---|---|---|---|
 | `allure-junit5` несовместим с JUnit 6.1.x | низкая | высокое | использовать `allure-jupiter` 3.1.1 (валидирован JUnit 6.1.0); проверить на 6.1.3 прогоном | **закрыт**: 4/4 passed на JUnit 6.1.3 |
 | Jenkins Allure plugin не поддерживает Allure 3 | низкая | среднее | plugin 3.0.0 поддерживает Allure 3; fallback — CLI + `publishHTML`/archive | решён |
-| `github.com/search` отдаёт captcha/rate-limit в CI | **высокая** | высокое | headless, переопределяемый `baseUrl`, smoke-тег, минимум запросов; при блокировке — другой target | открыт |
-| 4 поисковых запроса на прогон (2 теста + 2 параметра навигации) | средняя | высокое | не более одного поиска на тест; два прогона подряд зелёные (2026-11-24); при captcha — сократить параметризацию навигации до одного кейса | принят |
+| `github.com/search` отдаёт captcha/rate-limit в CI | **высокая** | высокое | три прогона 2026-11-24 зелёные (4/4 каждый); `baseUrl` уже переопределяем; при блокировке — smoke-тег/отдельный CI-таргет, без правки тестов | открыт |
+| 4 поисковых запроса на прогон (2 теста + 2 параметра навигации) | средняя | высокое | не более одного поиска на тест; три прогона подряд зелёные (2026-11-24); при captcha — сократить параметризацию навигации до одного кейса | принят |
 | Разметка github.com меняется (динамические CSS-классы, A/B-варианты выдачи) | высокая | среднее | локаторы только на `data-testid`/`aria-label`/текст; `results-list` отсутствует и в позитивной, и в негативной выдаче по-разному — негатив опирается на `search-sub-header` + отсутствие списка | принят |
 | `repo-name-link` содержит только имя репозитория (`selenide`, `niffler`), без owner | низкая | низкое | в параметризации передаётся короткое имя для проверки, полное (`owner/repo`) — для поиска ссылки | решён |
 | Поиск в headless может отдать иную сортировку/состав топ-результатов | средняя | среднее | проверяется наличие конкретной ссылки в выдаче, а не позиция элемента | принят |
@@ -165,10 +196,13 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 | Allure results пишутся не туда (`allure-results` vs `build/allure-results`) | средняя | среднее | явно задать `allure.results.directory` в `build.gradle`/`TestBase`, проверить генерацию | **решён**: `build/allure-results`, 4 result JSON |
 | Allure 3 `generate` без `-o` | средняя | низкое | проверить `npx allure generate --help`; иначе `allurerc.mjs` с `output` | **решён**: `-o/--output` есть, default `allure-report`; используем `allurerc.mjs` |
 | `@Step` не попадает в отчёт без AspectJ weaver | высокая | низкое | `aspectjweaver` 1.9.27 + `-javaagent`; проверить result JSON | **решён**: шаги `Выполнить поиск` / `Открыть репозиторий...` в отчёте |
-| `npx` тянет CLI из сети при каждом прогоне / Node < 22.18 | средняя | низкое | пин `allure@3.33.0`; в CI кэш npm или локальная установка; Node ≥ 22.18 | принят |
+| `npx` тянет CLI из сети при каждом прогоне / Node < 22.18 | средняя | низкое | пин `allure@3.33.0`; кэша npm в CI нет, CLI скачивается заново; Node `22.23.5` предустановлен (≥ 22.18) | принят |
 | Awesome-отчёт: `index.html` в корне output, а не в `awesome/` | низкая | низкое | открывать `build/allure-report`; не хардкодить `awesome/` в Jenkins/GHA | принят |
 | Вложения раздувают отчёт (page source ~200 КБ на падение) | низкая | низкое | вложения только на `FAIL`; без скриншотов на каждый шаг | принят |
-| `setup-java` мажор устарел (v4 → v5) | средняя | низкое | сверить на фазе 4 с Marketplace; записать версию | открыт |
+| `setup-java` мажор устарел (v4 → v5) | средняя | низкое | сверено: v1–v4 deprecated, используется v6 (v6.3.0); версия записана | **закрыт** |
+| Chrome в `ubuntu-latest` обновляется, драйвер/Chrome расходятся | средняя | среднее | версии логируются; Selenium Manager добирает драйвер; при поломке — `setup-chrome@v2` с пином, без изменения Selenide | принят |
+| Публикация отчёта для PR/форков | низкая | среднее | deploy только для `master` на `push`/`workflow_dispatch`; PR получает артефакт, но не Pages | принят |
+| `workflow_dispatch` с не-master ref не публикует отчёт | низкая | низкое | осознанно: деплой только с `master`; для проверки запускать dispatch на `master` | принят |
 | Секреты Telegram попадают в лог | низкая | высокое | secrets + маскирование + отсутствие echo | открыт |
 
 ## 5. Секреты и доступы (без значений)
@@ -182,9 +216,9 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 
 | Артефакт | Где | Ссылка | Фаза |
 |---|---|---|---|
-| `build/allure-results` | artifact GHA / Jenkins | локально наполняется при `test` | 3–6 |
-| HTML-отчёт `build/allure-report` | gh-pages / Jenkins | локально `npx allure@3.33.0 generate` | 3–6 |
-| Workflow | `.github/workflows/` | | 4 |
+| `build/allure-results` | artifact GHA **`allure-results`** / Jenkins | [run 45379934914](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45379934914/artifacts) | 3–6 |
+| HTML-отчёт `build/allure-report` | GitHub Pages / Jenkins | https://kulchub-aleksandr.github.io/getting-started-java/ | 3–6 |
+| Workflow | `.github/workflows/tests.yml` | [run 45379934914](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45379934914) | 4 |
 | `Jenkinsfile` | корень | | 6 |
 
 ## 7. Журнал фаз
@@ -195,7 +229,7 @@ allurerc.mjs                      # фаза 3 (output/plugins), если не �
 | 1. TestBase | **закрыт** | 2026-11-24 | `TestConfig` + `TestBase`; `SearchTests` в пакете `tests`; headed/headless/`-DbaseUrl`/env/сброс к дефолту проверены |
 | 2. Тесты + PageObject | **закрыт** | 2026-11-24 | 3 page-класса (композиция `$`/`$$`), 3 метода тестов / 4 выполнения; headless дважды зелёный (8.6 с и ~8 с); локаторов и `sleep` в `tests/` нет; TestBase/конфиг/build.gradle не менялись |
 | 3. Allure 3 | **закрыт** | 2026-11-24 | `allure-bom`/`jupiter`/`selenide` 3.1.1 + aspectjweaver 1.9.27; результаты в `build/allure-results`; Awesome-отчёт в `build/allure-report`; 4/4 passed; контролируемая поломка → screenshot + page source, откат → зелёный |
-| 4. GitHub Actions | открыт | | |
+| 4. GitHub Actions | **закрыт** | 2026-11-24 | Workflow `tests.yml`: push/PR/dispatch, concurrency, timeout 30, JDK 25 + Gradle cache; браузер — Selenium Manager + предустановленный Chrome 157; `allure-results` артефакт при любом исходе; Awesome-отчёт на Pages; 3 зелёных run, кэш hit, test job 57 → 52 → 30 с |
 | 5. Telegram | открыт | | |
 | 6. Jenkins | открыт | | |
 | 7. Ревью и README | открыт | | |
@@ -217,5 +251,7 @@ npx allure@3.33.0 open build/allure-report
 ```
 
 Для CI (фаза 4/6): архивировать `build/allure-results`; отчёт публиковать Allure-плагином (Jenkins 3.0.0) или шагом `npx allure@3.33.0 generate`; `build/` в git не коммитить — он в `.gitignore`.
+
+**GitHub Actions (фаза 4)**: `.github/workflows/tests.yml` прогоняет `./gradlew clean test -Dselenide.headless=true` на Temurin 25, всегда выгружает артефакт `allure-results` и публикует HTML-отчёт на GitHub Pages: https://kulchub-aleksandr.github.io/getting-started-java/.
 
 **Jenkins (фаза 6)**: `allure-jenkins-plugin` 3.0.0 заявляет Allure 3 и встроенный Node.js; при проблемах fallback — `archiveArtifacts 'build/allure-results/**'` + `npx allure@3.33.0 generate` на агенте с Node ≥ 22.18 + `publishHTML` на `build/allure-report`.
