@@ -1,0 +1,106 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      report-ready: ${{ steps.allure.outputs.generated }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up JDK 25
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+      - name: Browser versions
+        run: |
+          google-chrome --version
+          "${CHROMEWEBDRIVER}/chromedriver" --version
+      - name: Run tests
+        id: tests
+        run: ./gradlew clean test -Dselenide.headless=true
+      - name: Upload allure-results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: allure-results
+          path: build/allure-results
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Generate Allure report
+        id: allure
+        if: always()
+        run: |
+          if [ -d build/allure-results ]; then
+            npx --yes allure@3.33.0 generate build/allure-results --clean
+          fi
+          if [ -f build/allure-report/index.html ]; then
+            echo "generated=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "generated=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Upload Pages artifact
+        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.allure.outputs.generated == 'true'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: build/allure-report
+      - name: Job summary
+        if: always()
+        env:
+          TEST_OUTCOME: ${{ steps.tests.outcome }}
+          REPORT_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          PUBLISHED: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' && steps.allure.outputs.generated == 'true' }}
+        run: |
+          {
+            echo "## UI tests"
+            echo ""
+            echo "- Test step: **${TEST_OUTCOME}**"
+            if [ -f build/allure-report/summary.json ]; then
+              echo "- Total tests: **$(jq -r '.stats.total' build/allure-report/summary.json)**"
+              echo "- Passed: $(jq -r '.stats.passed // 0' build/allure-report/summary.json)"
+              echo "- Failed: $(jq -r '.stats.failed // 0' build/allure-report/summary.json)"
+              echo "- Broken: $(jq -r '.stats.broken // 0' build/allure-report/summary.json)"
+              echo "- Skipped: $(jq -r '.stats.skipped // 0' build/allure-report/summary.json)"
+            else
+              echo "- Tests: no Allure report generated"
+            fi
+            if [ "$PUBLISHED" = "true" ]; then
+              echo "- Report: ${REPORT_URL}"
+            else
+              echo "- Report: not published for this event (published on push to master)"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    needs: test
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/master' && needs.test.outputs.report-ready == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
