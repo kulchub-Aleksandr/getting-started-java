@@ -353,7 +353,7 @@ withCredentials([
 | Allure-отчёт в Jenkins | build #1, installation `Allure 3` (CLI 3.13.0) | https://jenkins.qa.guru/job/alekskulch-getting-started-java/1/allure/ | 6 |
 | Workflow | `.github/workflows/tests.yml` | [run 45396414475](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45396414475) | 4 |
 | Уведомление Telegram | шаг `Notify Telegram` + `.github/scripts/notify-telegram.sh` | run [45395989599](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45395989599) (success), [45396414475](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45396414475) (failure) | 5–6 |
-| `Jenkinsfile` | корень (untracked; в remote `master` пока 404) | | 6 |
+| `Jenkinsfile` | корень (в SCM, `cf51471`) | [job](https://jenkins.qa.guru/job/alekskulch-getting-started-java/) | 6 |
 
 ## 7. Журнал фаз
 
@@ -366,7 +366,7 @@ withCredentials([
 | 4. GitHub Actions | **закрыт** | 2026-11-24 | Workflow `tests.yml`: push/PR/dispatch, concurrency, timeout 30, JDK 25 + Gradle cache; браузер — Selenium Manager + предустановленный Chrome 157; `allure-results` артефакт при любом исходе; Awesome-отчёт на Pages; 3 зелёных run, кэш hit, test job 57 → 52 → 30 с |
 | 5. Telegram | **закрыт** | 2026-11-24 | `curl` к Bot API без сторонних action; `.github/scripts/notify-telegram.sh` + шаг `Notify Telegram` (`always() && !cancelled()`); HTML, падения из JUnit XML; в сообщении имя коммита (`head_commit.message`/`pull_request.title`, fallback — короткий SHA); success [45395989599](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45395989599), failure [45396414475](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45396414475), откат [45397540787](https://github.com/kulchub-Aleksandr/getting-started-java/actions/runs/45397540787); токена в логах нет; без секретов — notice + skip |
 | 6. Jenkins | в работе | 2026-11-24 | `Jenkinsfile` в SCM (`cf51471`), job на SCM; build #1–#5 `SUCCESS`; матрица: assertion probe — `FAILURE` 3/1 + вложения, compile — `FAILURE` без XML, missing-results — `FAILURE` без XML при Allure 4/4; JUnit/Allure/архивы работают, дефект `ls|head` исправлен; Telegram не видит user-store credentials (`CredentialNotFoundException`), нужен system scope |
-| 7. Ревью и README | открыт | | |
+| 7. Ревью и README | **закрыт** | 2026-11-25 | Независимый аудит: секретов нет, 2 прогона headless зелёные, отчёт генерируется; README.md создан; `.idea/` добавлен в `.gitignore`; расхождений версий/зависимостей нет; известные ограничения — в §9 |
 
 ## 8. Фрагмент для README (подготовлен в фазе 3, вставляется в фазе 7)
 
@@ -389,3 +389,25 @@ npx allure@3.33.0 open build/allure-report
 **GitHub Actions (фаза 4)**: `.github/workflows/tests.yml` прогоняет `./gradlew clean test -Dselenide.headless=true` на Temurin 25, всегда выгружает артефакт `allure-results` и публикует HTML-отчёт на GitHub Pages: https://kulchub-aleksandr.github.io/getting-started-java/.
 
 **Jenkins (фаза 6)**: `allure-jenkins-plugin` 3.0.0 заявляет Allure 3 и встроенный Node.js; при проблемах fallback — `archiveArtifacts 'build/allure-results/**'` + `npx allure@3.33.0 generate` на агенте с Node ≥ 22.18 + `publishHTML` на `build/allure-report`.
+
+## 9. Итоги фазы 7 (независимый аудит, 2026-11-25)
+
+Аудит выполнялся моделью, отличной от авторов кода (фазы 1–6). Вывод: расхождений версий/зависимостей нет, секретов в репозитории и логах нет, команды воспроизводимы.
+
+**Подтверждено прогоном (2026-11-25):**
+- `.\gradlew.bat clean test "-Dselenide.headless=true"` — зелёный дважды подряд: run 1 `BUILD SUCCESSFUL in 34s` (4/4), run 2 `in 10s` (4/4); JUnit XML `tests="4" failures="0" errors="0"`.
+- Канонические `-D` оверрайды: `-Dheadless=true -DbaseUrl=https://github.com -Dtimeout=15s -DbrowserSize=1280x720` — зелёный (4/4).
+- Env-оверрайды: `HEADLESS=true`, `BASE_URL=https://github.com` без `-D` — зелёный (4/4).
+- `npx allure@3.33.0 generate build/allure-results --clean` — `build/allure-report/index.html` + `summary.json`: `total 4, passed 4, status passed`, plugin `Awesome`.
+- `git grep -inE "token|chat_id|password|secret|api[_-]?key"` — только плейсхолдеры (`${TELEGRAM_BOT_TOKEN}`, `${{ secrets.… }}`, `credentialsId`), реальных значений нет.
+
+**Исправлено в фазе 7 (некритично, но в DoD безопасности):**
+- `.gitignore`: добавлен `.idea/` (до этого `.idea/` висел untracked и мог попасть в индекс).
+
+**Известные ограничения (не закрыты):**
+- Jenkins: Telegram-уведомление всё ещё пропускается (`CredentialNotFoundException`) — credentials `telegram-bot-token`/`telegram-chat-id` в user store не видны pipeline; нужен перенос в system scope администратором Jenkins. Поэтому глобальный DoD «Telegram доставлен из Jenkins» формально не выполнен; статус фазы 6 — «в работе».
+- Windows PowerShell: `npx` может блокироваться Execution Policy (`npx.ps1` не загружается) — обход `npx.cmd` / `cmd /c`; зафиксировано в README.
+- `.kilo/` — локальный каталог инструмента, untracked; в `.gitignore` не добавлен (вне scope задания).
+- Риск `github.com/search` (rate-limit/captcha) остаётся открытым (см. §4).
+
+**Остаточные риски / следующие занятия:** параллельный запуск (сейчас выключен по S11), кросс-браузерная матрица, стабильный тестовый стенд вместо `github.com/search` (smoke-таргет/мок), перенос Telegram-credentials в system scope в Jenkins.
